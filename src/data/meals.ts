@@ -1,4 +1,4 @@
-import { Meal, DietaryMode, NutritionTarget } from '@/types/meal';
+import { Meal, DietaryMode, NutritionTarget, Ingredient, MealIngredient } from '@/types/meal';
 import { commonIngredients } from './ingredients';
 
 const getIngredient = (id: string) => commonIngredients.find(i => i.id === id)!;
@@ -278,3 +278,119 @@ export const getMealByMode = (mode: DietaryMode, mealType: 'breakfast' | 'lunch'
   const meals = sampleMeals[mode][mealType];
   return meals[Math.floor(Math.random() * meals.length)];
 };
+
+// Generate meal from user's selected ingredients
+export const generateMealFromIngredients = (
+  mode: DietaryMode,
+  mealType: 'breakfast' | 'lunch' | 'dinner',
+  userIngredients: Ingredient[]
+): Meal => {
+  // Try to find a meal that uses some of user's ingredients
+  const baseMeals = sampleMeals[mode][mealType];
+  const baseMeal = baseMeals[Math.floor(Math.random() * baseMeals.length)];
+  
+  // Filter user ingredients by category for more relevant substitutions
+  const userMeatIngredients = userIngredients.filter(i => i.category === '肉类' || i.category === '海鲜');
+  const userVeggieIngredients = userIngredients.filter(i => i.category === '蔬菜');
+  const userStapleIngredients = userIngredients.filter(i => i.category === '主食');
+  
+  // Create modified ingredients list based on user's selection
+  const modifiedIngredients: MealIngredient[] = baseMeal.ingredients.map(mi => {
+    const category = mi.ingredient.category;
+    
+    // Try to substitute with user's ingredient of same category
+    if ((category === '肉类' || category === '海鲜') && userMeatIngredients.length > 0) {
+      const substitute = userMeatIngredients[Math.floor(Math.random() * userMeatIngredients.length)];
+      return { ingredient: substitute, amount: mi.amount };
+    }
+    
+    if (category === '蔬菜' && userVeggieIngredients.length > 0) {
+      const substitute = userVeggieIngredients[Math.floor(Math.random() * userVeggieIngredients.length)];
+      return { ingredient: substitute, amount: mi.amount };
+    }
+    
+    if (category === '主食' && userStapleIngredients.length > 0) {
+      const substitute = userStapleIngredients[Math.floor(Math.random() * userStapleIngredients.length)];
+      return { ingredient: substitute, amount: mi.amount };
+    }
+    
+    // Keep original if no substitute found
+    return mi;
+  });
+
+  // Calculate new nutrition based on modified ingredients
+  const nutrition = modifiedIngredients.reduce(
+    (acc, { ingredient, amount }) => ({
+      calories: acc.calories + (ingredient.caloriesPer100g * amount / 100),
+      protein: acc.protein + (ingredient.proteinPer100g * amount / 100),
+      carbs: acc.carbs + (ingredient.carbsPer100g * amount / 100),
+      fat: acc.fat + (ingredient.fatPer100g * amount / 100),
+      fiber: acc.fiber + 2, // Estimated fiber
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }
+  );
+
+  // Generate recipe based on ingredients
+  const ingredientNames = modifiedIngredients.map(mi => mi.ingredient.name);
+  const recipe = generateRecipeSteps(mealType, ingredientNames, mode);
+
+  // Create meal name based on main ingredients
+  const mainIngredient = modifiedIngredients.find(mi => 
+    mi.ingredient.category === '肉类' || mi.ingredient.category === '海鲜'
+  ) || modifiedIngredients[0];
+  
+  const mealNames: Record<typeof mealType, string[]> = {
+    breakfast: ['营养', '活力', '元气'],
+    lunch: ['健康', '美味', '营养'],
+    dinner: ['清爽', '温馨', '滋补'],
+  };
+  
+  const prefix = mealNames[mealType][Math.floor(Math.random() * mealNames[mealType].length)];
+
+  return {
+    id: `generated-${mode}-${mealType}-${Date.now()}`,
+    type: mealType,
+    name: `${prefix}${mainIngredient.ingredient.name}餐`,
+    description: baseMeal.description,
+    ingredients: modifiedIngredients,
+    recipe,
+    nutrition: {
+      calories: Math.round(nutrition.calories),
+      protein: Math.round(nutrition.protein),
+      carbs: Math.round(nutrition.carbs),
+      fat: Math.round(nutrition.fat),
+      fiber: Math.round(nutrition.fiber),
+    },
+    cookingTime: baseMeal.cookingTime,
+    difficulty: baseMeal.difficulty,
+  };
+};
+
+function generateRecipeSteps(mealType: string, ingredients: string[], mode: DietaryMode): string[] {
+  const steps: string[] = [];
+  
+  // Prep step
+  steps.push(`准备食材：${ingredients.slice(0, 3).join('、')}等`);
+  
+  // Processing based on meal type
+  if (mealType === 'breakfast') {
+    steps.push('将食材洗净，切好备用');
+    steps.push('热锅少油，快速翻炒或煎制');
+    steps.push('调味后装盘享用');
+  } else if (mealType === 'lunch') {
+    steps.push('主料切片或切块，用少许盐和调料腌制');
+    steps.push('蔬菜洗净切好备用');
+    steps.push('热锅下油，先炒主料至变色');
+    steps.push('加入蔬菜翻炒，调味即可');
+  } else {
+    steps.push('主料处理干净，蔬菜洗净切好');
+    if (mode === 'fatloss') {
+      steps.push('采用清蒸或水煮的方式，减少油脂摄入');
+    } else {
+      steps.push('小火慢炖或清炒，保留营养');
+    }
+    steps.push('根据口味调味，装盘即可');
+  }
+  
+  return steps;
+}
