@@ -7,6 +7,7 @@ import { MealPlanProvider } from "./contexts/MealPlanContext";
 import ModeSelection from "./pages/ModeSelection";
 import IngredientSelection from "./pages/IngredientSelection";
 import RecipeRecommendation from "./pages/RecipeRecommendation";
+import GroceryList from "./pages/GroceryList";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
             <Route path="/" element={<ModeSelection />} />
             <Route path="/ingredients" element={<IngredientSelection />} />
             <Route path="/recipes" element={<RecipeRecommendation />} />
+            <Route path="/grocery" element={<GroceryList />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
