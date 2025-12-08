@@ -1,4 +1,4 @@
-import { Dish, DietaryMode, NutritionTarget, Ingredient, Meal, NutritionInfo } from '@/types/meal';
+import { Dish, DietaryMode, NutritionTarget, Ingredient, Meal, NutritionInfo, WeeklyMealPlan, DailyMealPlan } from '@/types/meal';
 import { commonIngredients } from './ingredients';
 
 const getIngredient = (id: string) => commonIngredients.find(i => i.id === id)!;
@@ -26,6 +26,8 @@ export const nutritionTargets: Record<DietaryMode, NutritionTarget> = {
     fatRatio: 0.25,
   },
 };
+
+const dayNames = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
 // Complete dish database with detailed recipes
 export const dishDatabase: Dish[] = [
@@ -426,6 +428,106 @@ export const dishDatabase: Dish[] = [
     suitableFor: ['muscle', 'fatloss', 'general'],
     mealTypes: ['breakfast'],
   },
+  // Additional dishes for more variety
+  {
+    id: 'stir-fried-potato',
+    name: '酸辣土豆丝',
+    description: '开胃下饭，酸辣爽口',
+    ingredients: [
+      { ingredient: getIngredient('potato'), amount: 250 },
+      { ingredient: getIngredient('pepper'), amount: 50 },
+    ],
+    recipe: [
+      '土豆去皮切细丝，泡水去淀粉',
+      '青椒切丝备用',
+      '热锅下油，爆香干辣椒和花椒',
+      '下土豆丝大火快炒，加醋翻炒',
+      '加入青椒丝，盐调味即可',
+    ],
+    cookingTime: 15,
+    difficulty: 'easy',
+    suitableFor: ['general'],
+    mealTypes: ['lunch', 'dinner'],
+  },
+  {
+    id: 'braised-eggplant',
+    name: '红烧茄子',
+    description: '软糯入味，下饭神器',
+    ingredients: [
+      { ingredient: getIngredient('eggplant'), amount: 300 },
+    ],
+    recipe: [
+      '茄子切滚刀块，加盐腌制10分钟挤水',
+      '调汁：生抽、老抽、醋、糖、水淀粉',
+      '热锅多油，炸茄子至金黄捞出',
+      '锅留底油，爆香蒜末',
+      '下茄子，淋入调好的汁，翻炒收汁',
+    ],
+    cookingTime: 25,
+    difficulty: 'medium',
+    suitableFor: ['general'],
+    mealTypes: ['lunch', 'dinner'],
+  },
+  {
+    id: 'yogurt-fruit',
+    name: '酸奶水果杯',
+    description: '清爽健康，补充益生菌和维生素',
+    ingredients: [
+      { ingredient: getIngredient('yogurt'), amount: 200 },
+      { ingredient: getIngredient('banana'), amount: 80 },
+      { ingredient: getIngredient('apple'), amount: 80 },
+    ],
+    recipe: [
+      '苹果洗净切小丁',
+      '香蕉剥皮切片',
+      '酸奶倒入碗中',
+      '将水果铺在酸奶上',
+      '可撒少许坚果碎增加口感',
+    ],
+    cookingTime: 5,
+    difficulty: 'easy',
+    suitableFor: ['fatloss', 'general'],
+    mealTypes: ['breakfast'],
+  },
+  {
+    id: 'onion-beef',
+    name: '洋葱炒牛肉',
+    description: '香气四溢，补铁佳品',
+    ingredients: [
+      { ingredient: getIngredient('beef'), amount: 180 },
+      { ingredient: getIngredient('onion'), amount: 150 },
+    ],
+    recipe: [
+      '牛肉切薄片，用料酒、生抽、淀粉腌制',
+      '洋葱切丝备用',
+      '热锅下油，快速滑炒牛肉至变色盛出',
+      '锅中下洋葱丝炒软炒香',
+      '倒入牛肉，加蚝油翻炒均匀',
+    ],
+    cookingTime: 15,
+    difficulty: 'easy',
+    suitableFor: ['muscle', 'general'],
+    mealTypes: ['lunch', 'dinner'],
+  },
+  {
+    id: 'edamame-stir-fry',
+    name: '清炒毛豆',
+    description: '富含植物蛋白，营养丰富',
+    ingredients: [
+      { ingredient: getIngredient('edamame'), amount: 200 },
+    ],
+    recipe: [
+      '毛豆洗净沥干',
+      '热锅下油，放入毛豆翻炒',
+      '加少许水，盖锅焖3分钟',
+      '加盐调味继续翻炒',
+      '炒至毛豆熟透即可',
+    ],
+    cookingTime: 10,
+    difficulty: 'easy',
+    suitableFor: ['muscle', 'fatloss', 'general'],
+    mealTypes: ['lunch', 'dinner'],
+  },
 ];
 
 // Calculate nutrition from dish ingredients
@@ -451,11 +553,9 @@ export const findMatchingDishes = (
   const userIngredientIds = new Set(userIngredients.map(i => i.id));
   
   return dishDatabase.filter(dish => {
-    // Check if dish is suitable for the mode and meal type
     if (!dish.suitableFor.includes(mode)) return false;
     if (!dish.mealTypes.includes(mealType)) return false;
     
-    // Check if user has at least one main ingredient
     const hasMainIngredient = dish.ingredients.some(({ ingredient }) => 
       userIngredientIds.has(ingredient.id)
     );
@@ -474,7 +574,6 @@ export const generateMeal = (
   const matchingDishes = findMatchingDishes(userIngredients, mode, mealType)
     .filter(dish => !usedDishIds.has(dish.id));
   
-  // If no matching dishes, get default dishes for this mode/type
   const availableDishes = matchingDishes.length > 0 
     ? matchingDishes 
     : dishDatabase.filter(d => 
@@ -483,19 +582,15 @@ export const generateMeal = (
         !usedDishIds.has(d.id)
       );
   
-  // Select dishes for the meal
   const selectedDishes: Dish[] = [];
   const shuffled = [...availableDishes].sort(() => Math.random() - 0.5);
   
-  // Breakfast: 1-2 dishes
-  // Lunch/Dinner: 2-3 dishes (main + side + optional soup/staple)
   const dishCount = mealType === 'breakfast' ? Math.min(2, shuffled.length) : Math.min(3, shuffled.length);
   
   for (let i = 0; i < dishCount && i < shuffled.length; i++) {
     selectedDishes.push(shuffled[i]);
   }
   
-  // Calculate total nutrition
   const totalNutrition = selectedDishes.reduce(
     (acc, dish) => {
       const dishNutrition = calculateDishNutrition(dish);
@@ -511,7 +606,7 @@ export const generateMeal = (
   );
   
   return {
-    id: `${mode}-${mealType}-${Date.now()}`,
+    id: `${mode}-${mealType}-${Date.now()}-${Math.random()}`,
     type: mealType,
     dishes: selectedDishes,
     totalNutrition: {
@@ -542,20 +637,99 @@ export const generateDailyMeals = (
   return { breakfast, lunch, dinner };
 };
 
-// Generate grocery list from meals
+// Generate 7-day weekly meal plan
+export const generateWeeklyMealPlan = (
+  mode: DietaryMode,
+  userIngredients: Ingredient[]
+): WeeklyMealPlan => {
+  const days: DailyMealPlan[] = [];
+  const globalUsedDishIds = new Set<string>();
+  const today = new Date();
+  
+  for (let i = 0; i < 7; i++) {
+    const dayUsedDishIds = new Set<string>(globalUsedDishIds);
+    
+    const breakfast = generateMeal(mode, 'breakfast', userIngredients, dayUsedDishIds);
+    breakfast.dishes.forEach(d => dayUsedDishIds.add(d.id));
+    
+    const lunch = generateMeal(mode, 'lunch', userIngredients, dayUsedDishIds);
+    lunch.dishes.forEach(d => dayUsedDishIds.add(d.id));
+    
+    const dinner = generateMeal(mode, 'dinner', userIngredients, dayUsedDishIds);
+    dinner.dishes.forEach(d => dayUsedDishIds.add(d.id));
+    
+    // Add some dishes to global used to ensure variety across days
+    breakfast.dishes.slice(0, 1).forEach(d => globalUsedDishIds.add(d.id));
+    lunch.dishes.slice(0, 1).forEach(d => globalUsedDishIds.add(d.id));
+    dinner.dishes.slice(0, 1).forEach(d => globalUsedDishIds.add(d.id));
+    
+    // Reset global used if too many (to prevent running out of options)
+    if (globalUsedDishIds.size > dishDatabase.length * 0.5) {
+      globalUsedDishIds.clear();
+    }
+    
+    const dayDate = new Date(today);
+    dayDate.setDate(today.getDate() + i);
+    
+    const dayNutrition = {
+      calories: breakfast.totalNutrition.calories + lunch.totalNutrition.calories + dinner.totalNutrition.calories,
+      protein: breakfast.totalNutrition.protein + lunch.totalNutrition.protein + dinner.totalNutrition.protein,
+      carbs: breakfast.totalNutrition.carbs + lunch.totalNutrition.carbs + dinner.totalNutrition.carbs,
+      fat: breakfast.totalNutrition.fat + lunch.totalNutrition.fat + dinner.totalNutrition.fat,
+      fiber: breakfast.totalNutrition.fiber + lunch.totalNutrition.fiber + dinner.totalNutrition.fiber,
+    };
+    
+    days.push({
+      date: dayDate.toISOString().split('T')[0],
+      dayIndex: i,
+      dayName: dayNames[i],
+      meals: { breakfast, lunch, dinner },
+      totalNutrition: dayNutrition,
+      adopted: false,
+    });
+  }
+  
+  const totalNutrition = days.reduce(
+    (acc, day) => ({
+      calories: acc.calories + day.totalNutrition.calories,
+      protein: acc.protein + day.totalNutrition.protein,
+      carbs: acc.carbs + day.totalNutrition.carbs,
+      fat: acc.fat + day.totalNutrition.fat,
+      fiber: acc.fiber + day.totalNutrition.fiber,
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }
+  );
+  
+  return {
+    weekStartDate: today.toISOString().split('T')[0],
+    mode,
+    days,
+    totalNutrition,
+    ingredientsUsed: userIngredients,
+  };
+};
+
+// Generate grocery list with minimum 25 ingredients
 export const generateGroceryList = (
   mode: DietaryMode,
   days: number = 7
 ): { ingredient: Ingredient; amount: number }[] => {
   const groceryMap = new Map<string, { ingredient: Ingredient; amount: number }>();
+  const target = nutritionTargets[mode];
+  
+  // Target weekly calories and macros
+  const weeklyCaloriesTarget = ((target.calories.min + target.calories.max) / 2) * days;
+  const weeklyProteinTarget = (weeklyCaloriesTarget * target.proteinRatio) / 4; // 4 cal per gram protein
+  const weeklyCarbsTarget = (weeklyCaloriesTarget * target.carbsRatio) / 4; // 4 cal per gram carbs
+  const weeklyFatTarget = (weeklyCaloriesTarget * target.fatRatio) / 9; // 9 cal per gram fat
   
   // Get dishes suitable for this mode
   const suitableDishes = dishDatabase.filter(d => d.suitableFor.includes(mode));
   
-  // Create a sample week of meals
+  // Simulate a week of meals with variety
   for (let day = 0; day < days; day++) {
     const shuffled = [...suitableDishes].sort(() => Math.random() - 0.5);
-    const dailyDishes = shuffled.slice(0, 6); // 2 dishes per meal x 3 meals
+    const dailyDishes = shuffled.slice(0, 8); // More dishes per day for variety
     
     dailyDishes.forEach(dish => {
       dish.ingredients.forEach(({ ingredient, amount }) => {
@@ -569,5 +743,86 @@ export const generateGroceryList = (
     });
   }
   
-  return Array.from(groceryMap.values());
+  // Ensure minimum 25 ingredients
+  if (groceryMap.size < 25) {
+    const missingCount = 25 - groceryMap.size;
+    const allIngredients = Array.from(new Set(
+      dishDatabase.flatMap(d => d.ingredients.map(i => i.ingredient))
+    ));
+    
+    const unusedIngredients = allIngredients.filter(ing => !groceryMap.has(ing.id));
+    const shuffledUnused = [...unusedIngredients].sort(() => Math.random() - 0.5);
+    
+    for (let i = 0; i < Math.min(missingCount, shuffledUnused.length); i++) {
+      const ing = shuffledUnused[i];
+      groceryMap.set(ing.id, { ingredient: ing, amount: 200 }); // Default amount
+    }
+  }
+  
+  // Adjust amounts based on nutritional targets
+  const currentList = Array.from(groceryMap.values());
+  let totalProtein = 0;
+  let totalCarbs = 0;
+  let totalFat = 0;
+  
+  currentList.forEach(item => {
+    totalProtein += (item.ingredient.proteinPer100g * item.amount) / 100;
+    totalCarbs += (item.ingredient.carbsPer100g * item.amount) / 100;
+    totalFat += (item.ingredient.fatPer100g * item.amount) / 100;
+  });
+  
+  // Scale amounts if needed
+  const proteinScale = weeklyProteinTarget / (totalProtein || 1);
+  const carbsScale = weeklyCarbsTarget / (totalCarbs || 1);
+  const fatScale = weeklyFatTarget / (totalFat || 1);
+  const avgScale = (proteinScale + carbsScale + fatScale) / 3;
+  
+  return currentList.map(item => ({
+    ingredient: item.ingredient,
+    amount: Math.round(item.amount * Math.min(avgScale, 2) / 50) * 50, // Round to nearest 50g
+  })).filter(item => item.amount > 0);
+};
+
+// Get minimum ingredient count recommendation
+export const getMinimumIngredientCount = (): number => 25;
+
+// Check if ingredients are sufficient
+export const checkIngredientsSufficiency = (ingredients: Ingredient[]): {
+  sufficient: boolean;
+  currentCount: number;
+  minimumCount: number;
+  suggestions: string[];
+} => {
+  const minimumCount = 25;
+  const currentCount = ingredients.length;
+  const sufficient = currentCount >= minimumCount;
+  
+  const suggestions: string[] = [];
+  
+  if (!sufficient) {
+    const categories = new Map<string, number>();
+    ingredients.forEach(ing => {
+      categories.set(ing.category, (categories.get(ing.category) || 0) + 1);
+    });
+    
+    const categoryMinimums: Record<string, number> = {
+      '肉类': 3,
+      '蔬菜': 8,
+      '主食': 3,
+      '豆制品': 2,
+      '蛋奶': 2,
+      '水果': 3,
+      '海鲜': 2,
+      '调味料': 2,
+    };
+    
+    Object.entries(categoryMinimums).forEach(([cat, min]) => {
+      const current = categories.get(cat) || 0;
+      if (current < min) {
+        suggestions.push(`建议增加 ${min - current} 种${cat}（当前 ${current} 种）`);
+      }
+    });
+  }
+  
+  return { sufficient, currentCount, minimumCount, suggestions };
 };
