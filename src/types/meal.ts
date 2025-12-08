@@ -54,6 +54,27 @@ export interface Meal {
   totalNutrition: NutritionInfo;
 }
 
+export interface DailyMealPlan {
+  date: string;
+  dayIndex: number; // 0-6 for Monday-Sunday
+  dayName: string;
+  meals: {
+    breakfast: Meal;
+    lunch: Meal;
+    dinner: Meal;
+  };
+  totalNutrition: NutritionInfo;
+  adopted: boolean; // Whether user followed this plan
+}
+
+export interface WeeklyMealPlan {
+  weekStartDate: string;
+  mode: DietaryMode;
+  days: DailyMealPlan[];
+  totalNutrition: NutritionInfo;
+  ingredientsUsed: Ingredient[];
+}
+
 export interface DailyPlan {
   date: string;
   mode: DietaryMode;
@@ -77,4 +98,31 @@ export interface NutritionTarget {
   proteinRatio: number;
   carbsRatio: number;
   fatRatio: number;
+}
+
+// Diet tracking types
+export interface WeeklyDietRecord {
+  weekStartDate: string;
+  mode: DietaryMode;
+  plannedNutrition: NutritionInfo;
+  actualNutrition: NutritionInfo;
+  adoptionRate: number; // 0-100%
+  categoryBreakdown: {
+    category: IngredientCategory;
+    plannedAmount: number;
+    actualAmount: number;
+  }[];
+  recommendations: string[];
+}
+
+export interface DietAnalysis {
+  currentWeek: WeeklyDietRecord;
+  previousWeeks: WeeklyDietRecord[];
+  trends: {
+    caloriesTrend: 'increasing' | 'stable' | 'decreasing';
+    proteinTrend: 'increasing' | 'stable' | 'decreasing';
+    varietyScore: number; // 0-100
+    balanceScore: number; // 0-100
+  };
+  suggestions: string[];
 }
