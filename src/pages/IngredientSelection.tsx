@@ -72,6 +72,7 @@ const IngredientSelection = () => {
       proteinPer100g: parseFloat(customProtein) || 0,
       carbsPer100g: parseFloat(customCarbs) || 0,
       fatPer100g: parseFloat(customFat) || 0,
+      emoji: getCategoryEmoji(customCategory),
     };
 
     setCustomIngredients([...customIngredients, newIngredient]);
