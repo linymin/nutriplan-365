@@ -14,7 +14,123 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      diet_records: {
+        Row: {
+          actual_nutrition: Json
+          adoption_rate: number | null
+          category_breakdown: Json | null
+          created_at: string
+          id: string
+          mode: string
+          planned_nutrition: Json
+          recommendations: string[] | null
+          user_id: string
+          week_start_date: string
+        }
+        Insert: {
+          actual_nutrition: Json
+          adoption_rate?: number | null
+          category_breakdown?: Json | null
+          created_at?: string
+          id?: string
+          mode: string
+          planned_nutrition: Json
+          recommendations?: string[] | null
+          user_id: string
+          week_start_date: string
+        }
+        Update: {
+          actual_nutrition?: Json
+          adoption_rate?: number | null
+          category_breakdown?: Json | null
+          created_at?: string
+          id?: string
+          mode?: string
+          planned_nutrition?: Json
+          recommendations?: string[] | null
+          user_id?: string
+          week_start_date?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          cooking_preferences: string[] | null
+          created_at: string
+          dietary_restrictions: string[] | null
+          disliked_ingredients: string[] | null
+          exercise_frequency: string | null
+          exercise_types: string[] | null
+          height: number | null
+          id: string
+          liked_ingredients: string[] | null
+          taste_preferences: string[] | null
+          updated_at: string
+          user_id: string
+          weight: number | null
+        }
+        Insert: {
+          cooking_preferences?: string[] | null
+          created_at?: string
+          dietary_restrictions?: string[] | null
+          disliked_ingredients?: string[] | null
+          exercise_frequency?: string | null
+          exercise_types?: string[] | null
+          height?: number | null
+          id?: string
+          liked_ingredients?: string[] | null
+          taste_preferences?: string[] | null
+          updated_at?: string
+          user_id: string
+          weight?: number | null
+        }
+        Update: {
+          cooking_preferences?: string[] | null
+          created_at?: string
+          dietary_restrictions?: string[] | null
+          disliked_ingredients?: string[] | null
+          exercise_frequency?: string | null
+          exercise_types?: string[] | null
+          height?: number | null
+          id?: string
+          liked_ingredients?: string[] | null
+          taste_preferences?: string[] | null
+          updated_at?: string
+          user_id?: string
+          weight?: number | null
+        }
+        Relationships: []
+      }
+      weekly_meal_plans: {
+        Row: {
+          created_at: string
+          id: string
+          ingredients_used: Json
+          mode: string
+          plan_data: Json
+          user_id: string
+          week_start_date: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ingredients_used: Json
+          mode: string
+          plan_data: Json
+          user_id: string
+          week_start_date: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ingredients_used?: Json
+          mode?: string
+          plan_data?: Json
+          user_id?: string
+          week_start_date?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

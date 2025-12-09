@@ -32,7 +32,7 @@ const IngredientSelection = () => {
 
   // Redirect if no mode selected
   if (!mode) {
-    navigate('/');
+    navigate('/mode');
     return null;
   }
 
@@ -296,7 +296,7 @@ const IngredientSelection = () => {
         <div className="flex justify-between">
           <Button
             variant="outline"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/mode')}
             className="gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
