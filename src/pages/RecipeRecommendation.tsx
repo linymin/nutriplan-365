@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMealPlan } from '@/contexts/MealPlanContext';
 import { Header } from '@/components/Header';
@@ -7,13 +7,16 @@ import { DailyMealDetail } from '@/components/DailyMealDetail';
 import { DietAnalysisCard } from '@/components/DietAnalysisCard';
 import { IngredientWarning } from '@/components/IngredientWarning';
 import { generateWeeklyMealPlan, checkIngredientsSufficiency } from '@/data/meals';
-import { Sparkles, RefreshCw, ArrowLeft, ShoppingCart, BarChart3 } from 'lucide-react';
+import { useMealPlanStorage } from '@/hooks/useMealPlanStorage';
+import { Sparkles, RefreshCw, ArrowLeft, ShoppingCart, BarChart3, Save, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const RecipeRecommendation = () => {
   const navigate = useNavigate();
   const { mode, weeklyIngredients, weeklyMealPlan, setWeeklyMealPlan, selectedDayIndex, setSelectedDayIndex, toggleDayAdoption } = useMealPlan();
+  const { saving, saveMealPlan } = useMealPlanStorage();
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   // Redirect if no mode or ingredients
   if (!mode) {
@@ -42,10 +45,23 @@ const RecipeRecommendation = () => {
     return newPlan;
   }, [mode, weeklyIngredients]);
 
+  // Reset saved state when plan changes
+  useEffect(() => {
+    setSaved(false);
+  }, [currentPlan]);
+
   const handleRefreshMeals = () => {
     const newPlan = generateWeeklyMealPlan(mode, weeklyIngredients);
     setWeeklyMealPlan(newPlan);
     setSelectedDayIndex(null);
+    setSaved(false);
+  };
+
+  const handleSavePlan = async () => {
+    const success = await saveMealPlan(currentPlan);
+    if (success) {
+      setSaved(true);
+    }
   };
 
   const selectedDay = selectedDayIndex !== null ? currentPlan.days[selectedDayIndex] : null;
@@ -93,7 +109,25 @@ const RecipeRecommendation = () => {
               <ShoppingCart className="w-4 h-4" />
               采购清单
             </Button>
-            <Button onClick={handleRefreshMeals} className="gap-2">
+            <Button 
+              onClick={handleSavePlan} 
+              variant={saved ? "outline" : "default"}
+              disabled={saving || saved}
+              className="gap-2"
+            >
+              {saved ? (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  已保存
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  {saving ? '保存中...' : '保存食谱'}
+                </>
+              )}
+            </Button>
+            <Button onClick={handleRefreshMeals} variant="outline" className="gap-2">
               <RefreshCw className="w-4 h-4" />
               重新生成
             </Button>
