@@ -4,18 +4,25 @@ import { Ingredient, IngredientCategory } from '@/types/meal';
 import { useMealPlan } from '@/contexts/MealPlanContext';
 import { Header } from '@/components/Header';
 import { commonIngredients, ingredientCategories, getCategoryEmoji } from '@/data/ingredients';
-import { X, Plus, Search, ArrowRight, ArrowLeft, Sparkles } from 'lucide-react';
+import { IngredientExport } from '@/components/IngredientExport';
+import { IngredientRecommendations } from '@/components/IngredientRecommendations';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { X, Plus, Search, ArrowRight, ArrowLeft, Sparkles, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/hooks/use-toast';
+
+const MIN_INGREDIENTS = 25;
 
 const IngredientSelection = () => {
   const navigate = useNavigate();
   const { mode, weeklyIngredients, setWeeklyIngredients } = useMealPlan();
+  const { profile } = useUserProfile();
   
   const [activeCategory, setActiveCategory] = useState<IngredientCategory>('肉类');
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,7 +101,36 @@ const IngredientSelection = () => {
       toast({ title: '请至少选择一种食材', variant: 'destructive' });
       return;
     }
+    
+    if (weeklyIngredients.length < MIN_INGREDIENTS) {
+      toast({ 
+        title: '食材种类不足', 
+        description: `建议至少选择${MIN_INGREDIENTS}种食材以确保营养均衡`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     navigate('/recipes');
+  };
+
+  const insufficientIngredients = weeklyIngredients.length > 0 && weeklyIngredients.length < MIN_INGREDIENTS;
+
+  // Calculate missing categories for suggestions
+  const getMissingSuggestions = () => {
+    const selectedCategories = new Set(weeklyIngredients.map(i => i.category));
+    const suggestions: string[] = [];
+    
+    ingredientCategories.forEach(cat => {
+      const count = weeklyIngredients.filter(i => i.category === cat).length;
+      if (count === 0) {
+        suggestions.push(`添加${cat}`);
+      } else if (count < 2) {
+        suggestions.push(`增加${cat}种类`);
+      }
+    });
+    
+    return suggestions.slice(0, 3);
   };
 
   return (
@@ -112,16 +148,42 @@ const IngredientSelection = () => {
             选择您<span className="text-primary">本周可用</span>的食材
           </h1>
           <p className="text-muted-foreground">
-            告诉我们您手边有哪些食材，我们将为您推荐最合适的食谱
+            告诉我们您手边有哪些食材，我们将为您推荐最合适的食谱（建议至少{MIN_INGREDIENTS}种）
           </p>
         </section>
+
+        {/* Ingredient Recommendations */}
+        <IngredientRecommendations
+          mode={mode}
+          profile={profile}
+          selectedIngredients={weeklyIngredients}
+          onToggleIngredient={toggleIngredient}
+        />
+
+        {/* Insufficient Warning */}
+        {insufficientIngredients && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="flex flex-col gap-1">
+              <span>
+                当前已选 {weeklyIngredients.length} 种食材，建议至少选择 {MIN_INGREDIENTS} 种以确保一周营养均衡
+              </span>
+              <span className="text-sm opacity-80">
+                建议：{getMissingSuggestions().join('、')}
+              </span>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Selected ingredients */}
         {weeklyIngredients.length > 0 && (
           <div className="glass-card rounded-xl p-4 mb-6">
-            <h4 className="text-sm font-medium text-muted-foreground mb-3">
-              已选食材 ({weeklyIngredients.length})
-            </h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-medium text-muted-foreground">
+                已选食材 ({weeklyIngredients.length}/{MIN_INGREDIENTS})
+              </h4>
+              <IngredientExport ingredients={weeklyIngredients} mode={mode} />
+            </div>
             <div className="flex flex-wrap gap-2">
               {weeklyIngredients.map(ingredient => (
                 <span
