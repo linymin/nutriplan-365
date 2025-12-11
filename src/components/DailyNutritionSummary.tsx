@@ -1,5 +1,6 @@
 import { NutritionInfo, DietaryMode } from '@/types/meal';
-import { nutritionTargets } from '@/data/meals';
+import { getNutritionTargets } from '@/data/meals';
+import { useUserProfile } from '@/hooks/useUserProfile';
 import { cn } from '@/lib/utils';
 
 interface DailyNutritionSummaryProps {
@@ -8,11 +9,12 @@ interface DailyNutritionSummaryProps {
 }
 
 export const DailyNutritionSummary = ({ nutrition, mode }: DailyNutritionSummaryProps) => {
-  const target = nutritionTargets[mode];
+  const { profile } = useUserProfile();
+  const target = getNutritionTargets(mode, profile);
   const avgTargetCalories = (target.calories.min + target.calories.max) / 2;
 
   const items = [
-    { label: '总热量', value: nutrition.calories, unit: '卡', target: avgTargetCalories, color: 'bg-accent' },
+    { label: '总热量', value: nutrition.calories, unit: '千卡', target: avgTargetCalories, color: 'bg-accent' },
     { label: '蛋白质', value: nutrition.protein, unit: 'g', target: (avgTargetCalories * target.proteinRatio) / 4, color: 'bg-protein' },
     { label: '碳水化合物', value: nutrition.carbs, unit: 'g', target: (avgTargetCalories * target.carbsRatio) / 4, color: 'bg-carbs' },
     { label: '脂肪', value: nutrition.fat, unit: 'g', target: (avgTargetCalories * target.fatRatio) / 9, color: 'bg-fat' },
