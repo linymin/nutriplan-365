@@ -6,15 +6,18 @@ import { WeeklyMealPreview } from '@/components/WeeklyMealPreview';
 import { DailyMealDetail } from '@/components/DailyMealDetail';
 import { DietAnalysisCard } from '@/components/DietAnalysisCard';
 import { IngredientWarning } from '@/components/IngredientWarning';
-import { generateWeeklyMealPlan, checkIngredientsSufficiency } from '@/data/meals';
+import { generateWeeklyMealPlan, checkIngredientsSufficiency, getNutritionTargets } from '@/data/meals';
 import { useMealPlanStorage } from '@/hooks/useMealPlanStorage';
-import { Sparkles, RefreshCw, ArrowLeft, ShoppingCart, BarChart3, Save, CheckCircle } from 'lucide-react';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { calculateBMR, calculateTDEE } from '@/utils/nutrition';
+import { Sparkles, RefreshCw, ArrowLeft, ShoppingCart, BarChart3, Save, CheckCircle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const RecipeRecommendation = () => {
   const navigate = useNavigate();
   const { mode, weeklyIngredients, weeklyMealPlan, setWeeklyMealPlan, selectedDayIndex, setSelectedDayIndex, toggleDayAdoption } = useMealPlan();
   const { saving, saveMealPlan } = useMealPlanStorage();
+  const { profile } = useUserProfile();
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -35,15 +38,20 @@ const RecipeRecommendation = () => {
     [weeklyIngredients]
   );
 
-  // Generate weekly meal plan if not exists
+  // Get personalized nutrition info
+  const bmr = calculateBMR(profile);
+  const tdee = calculateTDEE(bmr, profile?.exerciseFrequency || null);
+  const targets = getNutritionTargets(mode, profile);
+
+  // Generate weekly meal plan if not exists - with profile for personalized nutrition
   const currentPlan = useMemo(() => {
     if (weeklyMealPlan && weeklyMealPlan.ingredientsUsed.length === weeklyIngredients.length) {
       return weeklyMealPlan;
     }
-    const newPlan = generateWeeklyMealPlan(mode, weeklyIngredients);
+    const newPlan = generateWeeklyMealPlan(mode, weeklyIngredients, profile);
     setWeeklyMealPlan(newPlan);
     return newPlan;
-  }, [mode, weeklyIngredients]);
+  }, [mode, weeklyIngredients, profile]);
 
   // Reset saved state when plan changes
   useEffect(() => {
@@ -51,7 +59,7 @@ const RecipeRecommendation = () => {
   }, [currentPlan]);
 
   const handleRefreshMeals = () => {
-    const newPlan = generateWeeklyMealPlan(mode, weeklyIngredients);
+    const newPlan = generateWeeklyMealPlan(mode, weeklyIngredients, profile);
     setWeeklyMealPlan(newPlan);
     setSelectedDayIndex(null);
     setSaved(false);
@@ -83,6 +91,12 @@ const RecipeRecommendation = () => {
           <p className="text-muted-foreground">
             基于{mode === 'muscle' ? '增肌' : mode === 'fatloss' ? '减脂' : '均衡'}模式和{weeklyIngredients.length}种食材制定
           </p>
+          {profile?.height && profile?.weight && (
+            <div className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 bg-secondary/50 rounded-full text-xs text-muted-foreground">
+              <Info className="w-3 h-3" />
+              基础代谢 {bmr} 千卡 · 每日消耗约 {tdee} 千卡 · 目标 {targets.calories.min}-{targets.calories.max} 千卡/天
+            </div>
+          )}
         </section>
 
         {/* Ingredient Warning */}

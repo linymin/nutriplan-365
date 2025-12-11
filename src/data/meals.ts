@@ -1,30 +1,41 @@
 import { Dish, DietaryMode, NutritionTarget, Ingredient, Meal, NutritionInfo, WeeklyMealPlan, DailyMealPlan } from '@/types/meal';
 import { commonIngredients } from './ingredients';
+import { UserProfile } from '@/hooks/useUserProfile';
+import { getPersonalizedNutritionTargets, getMealCalorieDistribution, calculateBMR, calculateTDEE } from '@/utils/nutrition';
 
 const getIngredient = (id: string) => commonIngredients.find(i => i.id === id)!;
 
+// Default nutrition targets (without user profile)
 export const nutritionTargets: Record<DietaryMode, NutritionTarget> = {
   muscle: {
     mode: 'muscle',
-    calories: { min: 2500, max: 3000 },
-    proteinRatio: 0.35,
+    calories: { min: 2200, max: 2800 },
+    proteinRatio: 0.30,
     carbsRatio: 0.45,
-    fatRatio: 0.20,
+    fatRatio: 0.25,
   },
   fatloss: {
     mode: 'fatloss',
-    calories: { min: 1500, max: 1800 },
-    proteinRatio: 0.40,
+    calories: { min: 1400, max: 1800 },
+    proteinRatio: 0.35,
     carbsRatio: 0.35,
-    fatRatio: 0.25,
+    fatRatio: 0.30,
   },
   general: {
     mode: 'general',
-    calories: { min: 2000, max: 2400 },
+    calories: { min: 1800, max: 2200 },
     proteinRatio: 0.25,
     carbsRatio: 0.50,
     fatRatio: 0.25,
   },
+};
+
+// Get personalized targets or fallback to defaults
+export const getNutritionTargets = (mode: DietaryMode, profile?: UserProfile | null): NutritionTarget => {
+  if (profile?.height && profile?.weight) {
+    return getPersonalizedNutritionTargets(mode, profile);
+  }
+  return nutritionTargets[mode];
 };
 
 const dayNames = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
@@ -564,12 +575,13 @@ export const findMatchingDishes = (
   });
 };
 
-// Generate a balanced meal with multiple dishes
+// Generate a balanced meal with multiple dishes - with calorie target
 export const generateMeal = (
   mode: DietaryMode,
   mealType: 'breakfast' | 'lunch' | 'dinner',
   userIngredients: Ingredient[],
-  usedDishIds: Set<string> = new Set()
+  usedDishIds: Set<string> = new Set(),
+  targetCalories?: number
 ): Meal => {
   const matchingDishes = findMatchingDishes(userIngredients, mode, mealType)
     .filter(dish => !usedDishIds.has(dish.id));
@@ -585,10 +597,41 @@ export const generateMeal = (
   const selectedDishes: Dish[] = [];
   const shuffled = [...availableDishes].sort(() => Math.random() - 0.5);
   
-  const dishCount = mealType === 'breakfast' ? Math.min(2, shuffled.length) : Math.min(3, shuffled.length);
+  // Calculate target calories for this meal if not provided
+  const defaultTargets = nutritionTargets[mode];
+  const dailyTarget = (defaultTargets.calories.min + defaultTargets.calories.max) / 2;
+  const mealTarget = targetCalories || (
+    mealType === 'breakfast' ? dailyTarget * 0.25 :
+    mealType === 'lunch' ? dailyTarget * 0.40 :
+    dailyTarget * 0.35
+  );
   
-  for (let i = 0; i < dishCount && i < shuffled.length; i++) {
-    selectedDishes.push(shuffled[i]);
+  let currentCalories = 0;
+  const maxDishes = mealType === 'breakfast' ? 3 : 4;
+  
+  // Select dishes until we reach target calories
+  for (let i = 0; i < shuffled.length && selectedDishes.length < maxDishes; i++) {
+    const dish = shuffled[i];
+    const dishNutrition = calculateDishNutrition(dish);
+    
+    // Add dish if it helps reach target
+    if (currentCalories < mealTarget * 1.1) {
+      selectedDishes.push(dish);
+      currentCalories += dishNutrition.calories;
+    }
+    
+    // Stop if we've reached the target
+    if (currentCalories >= mealTarget * 0.85) {
+      break;
+    }
+  }
+  
+  // Ensure at least 1-2 dishes
+  if (selectedDishes.length === 0 && shuffled.length > 0) {
+    selectedDishes.push(shuffled[0]);
+    if (shuffled.length > 1 && mealType !== 'breakfast') {
+      selectedDishes.push(shuffled[1]);
+    }
   }
   
   const totalNutrition = selectedDishes.reduce(
@@ -605,57 +648,74 @@ export const generateMeal = (
     { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }
   );
   
+  // Scale nutrition if below target minimum (BMR requirement)
+  let scaleFactor = 1;
+  if (totalNutrition.calories < mealTarget * 0.8 && totalNutrition.calories > 0) {
+    scaleFactor = (mealTarget * 0.9) / totalNutrition.calories;
+    scaleFactor = Math.min(scaleFactor, 1.5); // Cap at 1.5x
+  }
+  
   return {
     id: `${mode}-${mealType}-${Date.now()}-${Math.random()}`,
     type: mealType,
     dishes: selectedDishes,
     totalNutrition: {
-      calories: Math.round(totalNutrition.calories),
-      protein: Math.round(totalNutrition.protein),
-      carbs: Math.round(totalNutrition.carbs),
-      fat: Math.round(totalNutrition.fat),
-      fiber: Math.round(totalNutrition.fiber),
+      calories: Math.round(totalNutrition.calories * scaleFactor),
+      protein: Math.round(totalNutrition.protein * scaleFactor),
+      carbs: Math.round(totalNutrition.carbs * scaleFactor),
+      fat: Math.round(totalNutrition.fat * scaleFactor),
+      fiber: Math.round(totalNutrition.fiber * scaleFactor),
     },
   };
 };
 
-// Generate balanced daily meals
+// Generate balanced daily meals with personalized targets
 export const generateDailyMeals = (
   mode: DietaryMode,
-  userIngredients: Ingredient[]
+  userIngredients: Ingredient[],
+  profile?: UserProfile | null
 ): { breakfast: Meal; lunch: Meal; dinner: Meal } => {
   const usedDishIds = new Set<string>();
+  const targets = getNutritionTargets(mode, profile);
+  const dailyTarget = (targets.calories.min + targets.calories.max) / 2;
+  const distribution = getMealCalorieDistribution(dailyTarget, mode);
   
-  const breakfast = generateMeal(mode, 'breakfast', userIngredients, usedDishIds);
+  const breakfast = generateMeal(mode, 'breakfast', userIngredients, usedDishIds, distribution.breakfast);
   breakfast.dishes.forEach(d => usedDishIds.add(d.id));
   
-  const lunch = generateMeal(mode, 'lunch', userIngredients, usedDishIds);
+  const lunch = generateMeal(mode, 'lunch', userIngredients, usedDishIds, distribution.lunch);
   lunch.dishes.forEach(d => usedDishIds.add(d.id));
   
-  const dinner = generateMeal(mode, 'dinner', userIngredients, usedDishIds);
+  const dinner = generateMeal(mode, 'dinner', userIngredients, usedDishIds, distribution.dinner);
   
   return { breakfast, lunch, dinner };
 };
 
-// Generate 7-day weekly meal plan
+// Generate 7-day weekly meal plan with BMR-based nutrition
 export const generateWeeklyMealPlan = (
   mode: DietaryMode,
-  userIngredients: Ingredient[]
+  userIngredients: Ingredient[],
+  profile?: UserProfile | null
 ): WeeklyMealPlan => {
   const days: DailyMealPlan[] = [];
   const globalUsedDishIds = new Set<string>();
   const today = new Date();
   
+  // Get personalized targets
+  const targets = getNutritionTargets(mode, profile);
+  const dailyTarget = (targets.calories.min + targets.calories.max) / 2;
+  const distribution = getMealCalorieDistribution(dailyTarget, mode);
+  
   for (let i = 0; i < 7; i++) {
     const dayUsedDishIds = new Set<string>(globalUsedDishIds);
     
-    const breakfast = generateMeal(mode, 'breakfast', userIngredients, dayUsedDishIds);
+    const breakfast = generateMeal(mode, 'breakfast', userIngredients, dayUsedDishIds, distribution.breakfast);
     breakfast.dishes.forEach(d => dayUsedDishIds.add(d.id));
     
-    const lunch = generateMeal(mode, 'lunch', userIngredients, dayUsedDishIds);
+    const lunch = generateMeal(mode, 'lunch', userIngredients, dayUsedDishIds, distribution.lunch);
     lunch.dishes.forEach(d => dayUsedDishIds.add(d.id));
     
-    const dinner = generateMeal(mode, 'dinner', userIngredients, dayUsedDishIds);
+    const dinner = generateMeal(mode, 'dinner', userIngredients, dayUsedDishIds, distribution.dinner);
     dinner.dishes.forEach(d => dayUsedDishIds.add(d.id));
     
     // Add some dishes to global used to ensure variety across days

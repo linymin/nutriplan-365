@@ -1,6 +1,9 @@
 import { DailyMealPlan } from '@/types/meal';
+import { useMealPlan } from '@/contexts/MealPlanContext';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { getNutritionTargets } from '@/data/meals';
 import { cn } from '@/lib/utils';
-import { Check, ChevronRight } from 'lucide-react';
+import { Check, ChevronRight, Flame } from 'lucide-react';
 
 interface WeeklyMealPreviewProps {
   days: DailyMealPlan[];
@@ -15,6 +18,10 @@ export const WeeklyMealPreview = ({
   onDaySelect,
   onToggleAdoption,
 }: WeeklyMealPreviewProps) => {
+  const { mode } = useMealPlan();
+  const { profile } = useUserProfile();
+  const targets = getNutritionTargets(mode || 'general', profile);
+  
   return (
     <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
       {days.map((day) => {
@@ -23,6 +30,11 @@ export const WeeklyMealPreview = ({
           day.meals.breakfast.dishes.length + 
           day.meals.lunch.dishes.length + 
           day.meals.dinner.dishes.length;
+        
+        // Check calorie status
+        const calories = day.totalNutrition.calories;
+        const meetsTarget = calories >= targets.calories.min && calories <= targets.calories.max;
+        const meetsMinimum = calories >= targets.calories.min * 0.9;
         
         return (
           <div
@@ -75,7 +87,20 @@ export const WeeklyMealPreview = ({
             <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground">{dishCount} 道菜</p>
-                <p className="text-sm font-medium text-primary">{Math.round(day.totalNutrition.calories)} 千卡</p>
+                <div className="flex items-center gap-1">
+                  <Flame className={cn(
+                    'w-3.5 h-3.5',
+                    meetsTarget ? 'text-green-500' :
+                    meetsMinimum ? 'text-amber-500' : 'text-red-400'
+                  )} />
+                  <span className={cn(
+                    'text-sm font-medium',
+                    meetsTarget ? 'text-green-600' :
+                    meetsMinimum ? 'text-amber-600' : 'text-red-500'
+                  )}>
+                    {Math.round(calories)} 千卡
+                  </span>
+                </div>
               </div>
               <ChevronRight className={cn(
                 'w-4 h-4 text-muted-foreground transition-transform',
