@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/hooks/use-toast';
+import { NutritionSummaryCard } from '@/components/NutritionSummaryCard';
 
 const MIN_INGREDIENTS = 25;
 
@@ -179,22 +180,10 @@ const IngredientSelection = () => {
           </p>
         </section>
 
-        {/* Quick recommended summary */}
-        <div className="glass-card rounded-xl p-4 mb-6 border border-primary/20">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-primary" />
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-foreground">智能推荐</h4>
-              <p className="text-xs text-muted-foreground">
-                {mode === 'muscle' ? '高蛋白、增肌食材已标记 ⭐' : 
-                 mode === 'fatloss' ? '低卡、高纤维食材已标记 ⭐' : 
-                 '营养均衡食材已标记 ⭐'}
-              </p>
-            </div>
-          </div>
-        </div>
+        {/* Daily Nutrition Summary */}
+        {weeklyIngredients.length > 0 && (
+          <NutritionSummaryCard ingredients={weeklyIngredients} mode={mode} profile={profile} />
+        )}
 
         {/* Insufficient Warning */}
         {insufficientIngredients && (
@@ -356,7 +345,7 @@ const IngredientSelection = () => {
                         ? 'bg-primary-foreground/20 text-primary-foreground'
                         : 'bg-amber-500/20 text-amber-600'
                     )}>
-                      {recCount}⭐
+                      {recCount}
                     </span>
                   )}
                 </button>
@@ -406,10 +395,22 @@ const IngredientSelection = () => {
                     <Plus className="w-4 h-4 text-muted-foreground" />
                   )}
                 </div>
-                <p className="font-medium text-sm">{ingredient.name}</p>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="font-medium text-sm mb-1">{ingredient.name}</p>
+                <p className="text-xs text-muted-foreground mb-2">
                   {ingredient.caloriesPer100g}卡/100{ingredient.unit}
                 </p>
+                {/* Macro nutrients with color coding */}
+                <div className="flex gap-1.5 flex-wrap">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                    蛋白{ingredient.proteinPer100g}g
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                    碳水{ingredient.carbsPer100g}g
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400">
+                    脂肪{ingredient.fatPer100g}g
+                  </span>
+                </div>
               </button>
             );
           })}
