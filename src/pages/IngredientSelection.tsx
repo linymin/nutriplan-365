@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Ingredient, IngredientCategory } from '@/types/meal';
 import { useMealPlan } from '@/contexts/MealPlanContext';
 import { Header } from '@/components/Header';
 import { commonIngredients, ingredientCategories, getCategoryEmoji } from '@/data/ingredients';
 import { IngredientExport } from '@/components/IngredientExport';
-import { IngredientRecommendations } from '@/components/IngredientRecommendations';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { X, Plus, Search, ArrowRight, ArrowLeft, Sparkles, AlertTriangle } from 'lucide-react';
+import { getRecommendedIngredients } from '@/utils/ingredientRecommendation';
+import { X, Plus, Search, ArrowRight, ArrowLeft, Sparkles, AlertTriangle, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -45,11 +45,38 @@ const IngredientSelection = () => {
 
   const allIngredients = [...commonIngredients, ...customIngredients];
 
-  const filteredIngredients = allIngredients.filter(ingredient => {
-    const matchesCategory = ingredient.category === activeCategory;
-    const matchesSearch = ingredient.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return searchQuery ? matchesSearch : matchesCategory;
-  });
+  // Get recommended ingredient IDs based on mode and profile
+  const recommendedIngredientIds = useMemo(() => {
+    return getRecommendedIngredients(mode, profile);
+  }, [mode, profile]);
+
+  const isRecommended = (ingredientId: string) => recommendedIngredientIds.includes(ingredientId);
+
+  // Count recommendations per category
+  const categoryRecommendationCounts = useMemo(() => {
+    const counts: Record<IngredientCategory, number> = {} as Record<IngredientCategory, number>;
+    ingredientCategories.forEach(cat => {
+      counts[cat] = commonIngredients.filter(
+        i => i.category === cat && isRecommended(i.id)
+      ).length;
+    });
+    return counts;
+  }, [recommendedIngredientIds]);
+
+  const filteredIngredients = useMemo(() => {
+    let filtered = allIngredients.filter(ingredient => {
+      const matchesCategory = ingredient.category === activeCategory;
+      const matchesSearch = ingredient.name.toLowerCase().includes(searchQuery.toLowerCase());
+      return searchQuery ? matchesSearch : matchesCategory;
+    });
+    
+    // Sort by recommended first within category
+    return filtered.sort((a, b) => {
+      const aRec = isRecommended(a.id) ? 1 : 0;
+      const bRec = isRecommended(b.id) ? 1 : 0;
+      return bRec - aRec;
+    });
+  }, [allIngredients, activeCategory, searchQuery, recommendedIngredientIds]);
 
   const toggleIngredient = (ingredient: Ingredient) => {
     const isSelected = weeklyIngredients.some(i => i.id === ingredient.id);
@@ -152,13 +179,22 @@ const IngredientSelection = () => {
           </p>
         </section>
 
-        {/* Ingredient Recommendations */}
-        <IngredientRecommendations
-          mode={mode}
-          profile={profile}
-          selectedIngredients={weeklyIngredients}
-          onToggleIngredient={toggleIngredient}
-        />
+        {/* Quick recommended summary */}
+        <div className="glass-card rounded-xl p-4 mb-6 border border-primary/20">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-foreground">智能推荐</h4>
+              <p className="text-xs text-muted-foreground">
+                {mode === 'muscle' ? '高蛋白、增肌食材已标记 ⭐' : 
+                 mode === 'fatloss' ? '低卡、高纤维食材已标记 ⭐' : 
+                 '营养均衡食材已标记 ⭐'}
+              </p>
+            </div>
+          </div>
+        </div>
 
         {/* Insufficient Warning */}
         {insufficientIngredients && (
@@ -299,20 +335,33 @@ const IngredientSelection = () => {
         {/* Category tabs */}
         {!searchQuery && (
           <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide mb-4">
-            {ingredientCategories.map(category => (
-              <button
-                key={category}
-                onClick={() => setActiveCategory(category)}
-                className={cn(
-                  'px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all',
-                  activeCategory === category
-                    ? 'bg-primary text-primary-foreground shadow-md'
-                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                )}
-              >
-                {getCategoryEmoji(category)} {category}
-              </button>
-            ))}
+            {ingredientCategories.map(category => {
+              const recCount = categoryRecommendationCounts[category];
+              return (
+                <button
+                  key={category}
+                  onClick={() => setActiveCategory(category)}
+                  className={cn(
+                    'px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5',
+                    activeCategory === category
+                      ? 'bg-primary text-primary-foreground shadow-md'
+                      : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                  )}
+                >
+                  {getCategoryEmoji(category)} {category}
+                  {recCount > 0 && (
+                    <span className={cn(
+                      'text-[10px] px-1.5 py-0.5 rounded-full',
+                      activeCategory === category
+                        ? 'bg-primary-foreground/20 text-primary-foreground'
+                        : 'bg-amber-500/20 text-amber-600'
+                    )}>
+                      {recCount}⭐
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -321,6 +370,7 @@ const IngredientSelection = () => {
           {filteredIngredients.map(ingredient => {
             const isSelected = weeklyIngredients.some(i => i.id === ingredient.id);
             const isCustom = ingredient.id.startsWith('custom-');
+            const recommended = isRecommended(ingredient.id);
             return (
               <button
                 key={ingredient.id}
@@ -329,16 +379,27 @@ const IngredientSelection = () => {
                   'p-4 rounded-xl border-2 transition-all text-left relative',
                   isSelected
                     ? 'border-primary bg-primary/5 shadow-md'
+                    : recommended
+                    ? 'border-amber-400/50 bg-amber-50/30 dark:bg-amber-900/10 hover:border-amber-400 hover:shadow-sm'
                     : 'border-border bg-card hover:border-primary/30 hover:shadow-sm'
                 )}
               >
-                {isCustom && (
-                  <span className="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent">
-                    自定义
-                  </span>
-                )}
+                {/* Badge area */}
+                <div className="absolute top-2 right-2 flex gap-1">
+                  {recommended && !isSelected && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 flex items-center gap-0.5">
+                      <Star className="w-2.5 h-2.5" />
+                      推荐
+                    </span>
+                  )}
+                  {isCustom && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent">
+                      自定义
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-2xl">{getCategoryEmoji(ingredient.category)}</span>
+                  <span className="text-2xl">{ingredient.emoji || getCategoryEmoji(ingredient.category)}</span>
                   {isSelected ? (
                     <X className="w-4 h-4 text-primary" />
                   ) : (
