@@ -1,21 +1,41 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import html2canvas from 'html2canvas';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Ingredient, DietaryMode } from '@/types/meal';
-import { Download, Share2, Flame, Dumbbell, Wheat, Droplets, Image, Copy, Loader2 } from 'lucide-react';
+import { Download, Share2, Flame, Dumbbell, Wheat, Droplets, Image, Copy, Loader2, ShoppingCart, Scale } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { calculateWeeklyPurchaseAmount } from '@/utils/ingredientRecommendation';
 
 interface IngredientExportProps {
   ingredients: Ingredient[];
   mode: DietaryMode;
 }
 
+interface IngredientWithAmount extends Ingredient {
+  weeklyAmount: number;
+  weeklyUnit: string;
+}
+
 export const IngredientExport = ({ ingredients, mode }: IngredientExportProps) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { profile } = useUserProfile();
   const [isExporting, setIsExporting] = useState(false);
+
+  // Calculate weekly amounts for each ingredient
+  const ingredientsWithAmounts = useMemo((): IngredientWithAmount[] => {
+    return ingredients.map(ing => {
+      const { amount, unit } = calculateWeeklyPurchaseAmount(ing, mode, profile, ingredients.length);
+      return {
+        ...ing,
+        weeklyAmount: amount,
+        weeklyUnit: unit,
+      };
+    });
+  }, [ingredients, mode, profile]);
 
   const getModeLabel = () => {
     switch (mode) {
@@ -41,11 +61,11 @@ export const IngredientExport = ({ ingredients, mode }: IngredientExportProps) =
     }
   };
 
-  const groupedIngredients = ingredients.reduce((acc, ing) => {
+  const groupedIngredients = ingredientsWithAmounts.reduce((acc, ing) => {
     if (!acc[ing.category]) acc[ing.category] = [];
     acc[ing.category].push(ing);
     return acc;
-  }, {} as Record<string, Ingredient[]>);
+  }, {} as Record<string, IngredientWithAmount[]>);
 
   // Calculate total nutrition
   const totalNutrition = ingredients.reduce(
@@ -71,6 +91,13 @@ export const IngredientExport = ({ ingredients, mode }: IngredientExportProps) =
       case '调味料': return '🧂';
       default: return '🍽️';
     }
+  };
+
+  // Format amount display
+  const formatAmount = (amount: number, unit: string) => {
+    if (unit === '个') return `${amount}个`;
+    if (unit === '毫升') return amount >= 1000 ? `${(amount / 1000).toFixed(1)}L` : `${amount}ml`;
+    return amount >= 1000 ? `${(amount / 1000).toFixed(1)}kg` : `${amount}g`;
   };
 
   const handleExportImage = async () => {
@@ -127,7 +154,7 @@ ${getModeLabel()}
 • 脂肪: ${Math.round(totalNutrition.fat / ingredients.length)}g
 
 ${Object.entries(groupedIngredients).map(([category, items]) => 
-  `${getCategoryIcon(category)} 【${category}】（${items.length}种）\n${items.map(i => `   ${i.emoji} ${i.name}`).join('\n')}`
+  `${getCategoryIcon(category)} 【${category}】（${items.length}种）\n${items.map(i => `   ${i.emoji} ${i.name} - ${formatAmount(i.weeklyAmount, i.weeklyUnit)}`).join('\n')}`
 ).join('\n\n')}
 
 ━━━━━━━━━━━━━━━━━━━━
@@ -160,15 +187,15 @@ ${Object.entries(groupedIngredients).map(([category, items]) =>
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="outline" className="gap-2">
-          <Share2 className="w-4 h-4" />
+          <ShoppingCart className="w-4 h-4" />
           导出清单
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Share2 className="w-5 h-5 text-primary" />
-            导出食材清单
+            <ShoppingCart className="w-5 h-5 text-primary" />
+            导出采购清单
           </DialogTitle>
         </DialogHeader>
         
@@ -194,7 +221,10 @@ ${Object.entries(groupedIngredients).map(([category, items]) =>
                 </span>
               </div>
               <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>共 <span className="font-semibold text-foreground">{ingredients.length}</span> 种食材</span>
+                <span className="flex items-center gap-1">
+                  <Scale className="w-3.5 h-3.5" />
+                  共 <span className="font-semibold text-foreground">{ingredients.length}</span> 种食材（含建议购买量）
+                </span>
                 <span className="text-xs">{currentDate}</span>
               </div>
             </CardHeader>
@@ -227,7 +257,7 @@ ${Object.entries(groupedIngredients).map(([category, items]) =>
                 </div>
               </div>
 
-              {/* Ingredients by Category */}
+              {/* Ingredients by Category with amounts */}
               <div className="space-y-3">
                 {Object.entries(groupedIngredients).map(([category, items]) => (
                   <div key={category} className="bg-background/60 rounded-lg p-3">
@@ -241,14 +271,25 @@ ${Object.entries(groupedIngredients).map(([category, items]) =>
                         {items.length}种
                       </span>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="space-y-1.5">
                       {items.map(item => (
-                        <span 
+                        <div 
                           key={item.id}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-background rounded-full text-xs font-medium shadow-sm border border-border/50"
+                          className="flex items-center justify-between px-2.5 py-1.5 bg-background rounded-lg text-xs border border-border/50"
                         >
-                          {item.emoji} {item.name}
-                        </span>
+                          <span className="flex items-center gap-1.5 font-medium">
+                            {item.emoji} {item.name}
+                          </span>
+                          <span 
+                            className="font-bold px-2 py-0.5 rounded"
+                            style={{ 
+                              backgroundColor: getModeColor() + '15',
+                              color: getModeColor()
+                            }}
+                          >
+                            {formatAmount(item.weeklyAmount, item.weeklyUnit)}
+                          </span>
+                        </div>
                       ))}
                     </div>
                   </div>
