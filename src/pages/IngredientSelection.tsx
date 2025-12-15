@@ -64,6 +64,15 @@ const IngredientSelection = () => {
     return counts;
   }, [recommendedIngredientIds]);
 
+  // Count selected ingredients per category
+  const categorySelectedCounts = useMemo(() => {
+    const counts: Record<IngredientCategory, number> = {} as Record<IngredientCategory, number>;
+    ingredientCategories.forEach(cat => {
+      counts[cat] = weeklyIngredients.filter(i => i.category === cat).length;
+    });
+    return counts;
+  }, [weeklyIngredients]);
+
   const filteredIngredients = useMemo(() => {
     let filtered = allIngredients.filter(ingredient => {
       const matchesCategory = ingredient.category === activeCategory;
@@ -165,273 +174,331 @@ const IngredientSelection = () => {
     <div className="min-h-screen bg-background">
       <Header />
 
-      <main className="container max-w-5xl mx-auto px-4 py-8">
+      <main className="container max-w-7xl mx-auto px-4 py-6">
         {/* Header */}
-        <section className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
+        <section className="text-center mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-3">
             <Sparkles className="w-4 h-4" />
             第二步：选择本周食材
           </div>
           <h1 className="text-2xl md:text-3xl font-bold mb-2">
             选择您<span className="text-primary">本周可用</span>的食材
           </h1>
-          <p className="text-muted-foreground">
-            告诉我们您手边有哪些食材，我们将为您推荐最合适的食谱（建议至少{MIN_INGREDIENTS}种）
+          <p className="text-muted-foreground text-sm">
+            建议至少{MIN_INGREDIENTS}种以确保营养均衡
           </p>
         </section>
 
-        {/* Daily Nutrition Summary */}
-        {weeklyIngredients.length > 0 && (
-          <NutritionSummaryCard ingredients={weeklyIngredients} mode={mode} profile={profile} />
-        )}
+        {/* Two Column Layout */}
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Left Sidebar - Fixed on desktop */}
+          <aside className="lg:w-80 lg:flex-shrink-0">
+            <div className="lg:sticky lg:top-4 space-y-4">
+              {/* Nutrition Summary */}
+              <NutritionSummaryCard ingredients={weeklyIngredients} mode={mode} profile={profile} />
 
-        {/* Insufficient Warning */}
-        {insufficientIngredients && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription className="flex flex-col gap-1">
-              <span>
-                当前已选 {weeklyIngredients.length} 种食材，建议至少选择 {MIN_INGREDIENTS} 种以确保一周营养均衡
-              </span>
-              <span className="text-sm opacity-80">
-                建议：{getMissingSuggestions().join('、')}
-              </span>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Selected ingredients */}
-        {weeklyIngredients.length > 0 && (
-          <div className="glass-card rounded-xl p-4 mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-medium text-muted-foreground">
-                已选食材 ({weeklyIngredients.length}/{MIN_INGREDIENTS})
-              </h4>
-              <IngredientExport ingredients={weeklyIngredients} mode={mode} />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {weeklyIngredients.map(ingredient => (
-                <span
-                  key={ingredient.id}
-                  className="ingredient-tag bg-primary/10 text-primary"
-                >
-                  {getCategoryEmoji(ingredient.category)} {ingredient.name}
-                  <button
-                    onClick={() => removeIngredient(ingredient)}
-                    className="ml-1 hover:text-destructive transition-colors"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Search and Custom Add */}
-        <div className="flex gap-3 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="搜索食材..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <Plus className="w-4 h-4" />
-                自定义食材
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>添加自定义食材</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>食材名称 *</Label>
-                  <Input
-                    value={customName}
-                    onChange={(e) => setCustomName(e.target.value)}
-                    placeholder="例如：藜麦"
-                  />
+              {/* Selected Ingredients */}
+              <div className="glass-card rounded-xl p-4 border border-border">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-foreground">
+                    已选食材 
+                    <span className={cn(
+                      "ml-2 px-2 py-0.5 rounded-full text-xs",
+                      weeklyIngredients.length >= MIN_INGREDIENTS 
+                        ? "bg-emerald-500/20 text-emerald-600" 
+                        : "bg-amber-500/20 text-amber-600"
+                    )}>
+                      {weeklyIngredients.length}/{MIN_INGREDIENTS}
+                    </span>
+                  </h4>
+                  {weeklyIngredients.length > 0 && (
+                    <IngredientExport ingredients={weeklyIngredients} mode={mode} />
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <Label>食材类别</Label>
-                  <Select value={customCategory} onValueChange={(v) => setCustomCategory(v as IngredientCategory)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ingredientCategories.map(cat => (
-                        <SelectItem key={cat} value={cat}>
-                          {getCategoryEmoji(cat)} {cat}
-                        </SelectItem>
+                
+                {weeklyIngredients.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    请从右侧选择食材
+                  </p>
+                ) : (
+                  <div className="max-h-[280px] overflow-y-auto pr-1 scrollbar-thin">
+                    <div className="flex flex-wrap gap-1.5">
+                      {weeklyIngredients.map(ingredient => (
+                        <span
+                          key={ingredient.id}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-primary/10 text-primary font-medium"
+                        >
+                          {getCategoryEmoji(ingredient.category)} {ingredient.name}
+                          <button
+                            onClick={() => removeIngredient(ingredient)}
+                            className="ml-0.5 hover:text-destructive transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>热量 (卡/100g)</Label>
-                    <Input
-                      type="number"
-                      value={customCalories}
-                      onChange={(e) => setCustomCalories(e.target.value)}
-                      placeholder="0"
-                    />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>蛋白质 (g/100g)</Label>
-                    <Input
-                      type="number"
-                      value={customProtein}
-                      onChange={(e) => setCustomProtein(e.target.value)}
-                      placeholder="0"
-                    />
+                )}
+
+                {/* Insufficient Warning */}
+                {insufficientIngredients && (
+                  <div className="mt-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                      <div className="text-xs text-amber-600">
+                        <p className="font-medium mb-1">食材种类不足</p>
+                        <p className="opacity-80">{getMissingSuggestions().join('、')}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>碳水 (g/100g)</Label>
-                    <Input
-                      type="number"
-                      value={customCarbs}
-                      onChange={(e) => setCustomCarbs(e.target.value)}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>脂肪 (g/100g)</Label>
-                    <Input
-                      type="number"
-                      value={customFat}
-                      onChange={(e) => setCustomFat(e.target.value)}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-                <Button onClick={handleAddCustomIngredient} className="w-full">
-                  添加食材
+                )}
+              </div>
+
+              {/* Navigation buttons - Desktop */}
+              <div className="hidden lg:flex flex-col gap-2">
+                <Button
+                  onClick={handleSubmit}
+                  disabled={weeklyIngredients.length === 0}
+                  className="w-full gap-2"
+                >
+                  确认本周食材
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/mode')}
+                  className="w-full gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  返回选择模式
                 </Button>
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+            </div>
+          </aside>
 
-        {/* Category tabs */}
-        {!searchQuery && (
-          <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide mb-4">
-            {ingredientCategories.map(category => {
-              const recCount = categoryRecommendationCounts[category];
-              return (
-                <button
-                  key={category}
-                  onClick={() => setActiveCategory(category)}
-                  className={cn(
-                    'px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5',
-                    activeCategory === category
-                      ? 'bg-primary text-primary-foreground shadow-md'
-                      : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                  )}
-                >
-                  {getCategoryEmoji(category)} {category}
-                  {recCount > 0 && (
-                    <span className={cn(
-                      'text-[10px] px-1.5 py-0.5 rounded-full',
-                      activeCategory === category
-                        ? 'bg-primary-foreground/20 text-primary-foreground'
-                        : 'bg-amber-500/20 text-amber-600'
-                    )}>
-                      {recCount}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+          {/* Right Content - Scrollable */}
+          <div className="flex-1 min-w-0">
+            {/* Search and Custom Add */}
+            <div className="flex gap-3 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="搜索食材..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="gap-2 flex-shrink-0">
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden sm:inline">自定义食材</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>添加自定义食材</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label>食材名称 *</Label>
+                      <Input
+                        value={customName}
+                        onChange={(e) => setCustomName(e.target.value)}
+                        placeholder="例如：藜麦"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>食材类别</Label>
+                      <Select value={customCategory} onValueChange={(v) => setCustomCategory(v as IngredientCategory)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ingredientCategories.map(cat => (
+                            <SelectItem key={cat} value={cat}>
+                              {getCategoryEmoji(cat)} {cat}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>热量 (卡/100g)</Label>
+                        <Input
+                          type="number"
+                          value={customCalories}
+                          onChange={(e) => setCustomCalories(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>蛋白质 (g/100g)</Label>
+                        <Input
+                          type="number"
+                          value={customProtein}
+                          onChange={(e) => setCustomProtein(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>碳水 (g/100g)</Label>
+                        <Input
+                          type="number"
+                          value={customCarbs}
+                          onChange={(e) => setCustomCarbs(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>脂肪 (g/100g)</Label>
+                        <Input
+                          type="number"
+                          value={customFat}
+                          onChange={(e) => setCustomFat(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    <Button onClick={handleAddCustomIngredient} className="w-full">
+                      添加食材
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {/* Category tabs with selection counts */}
+            {!searchQuery && (
+              <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-hide mb-4">
+                {ingredientCategories.map(category => {
+                  const recCount = categoryRecommendationCounts[category];
+                  const selectedCount = categorySelectedCounts[category];
+                  return (
+                    <button
+                      key={category}
+                      onClick={() => setActiveCategory(category)}
+                      className={cn(
+                        'px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5',
+                        activeCategory === category
+                          ? 'bg-primary text-primary-foreground shadow-md'
+                          : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                      )}
+                    >
+                      {getCategoryEmoji(category)} {category}
+                      {/* Selected count badge */}
+                      {selectedCount > 0 && (
+                        <span className={cn(
+                          'text-[10px] px-1.5 py-0.5 rounded-full font-bold',
+                          activeCategory === category
+                            ? 'bg-primary-foreground text-primary'
+                            : 'bg-primary text-primary-foreground'
+                        )}>
+                          {selectedCount}
+                        </span>
+                      )}
+                      {/* Recommendation count badge */}
+                      {recCount > 0 && selectedCount === 0 && (
+                        <span className={cn(
+                          'text-[10px] px-1.5 py-0.5 rounded-full',
+                          activeCategory === category
+                            ? 'bg-primary-foreground/20 text-primary-foreground'
+                            : 'bg-amber-500/20 text-amber-600'
+                        )}>
+                          <Star className="w-2.5 h-2.5 inline" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Ingredients grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {filteredIngredients.map(ingredient => {
+                const isSelected = weeklyIngredients.some(i => i.id === ingredient.id);
+                const isCustom = ingredient.id.startsWith('custom-');
+                const recommended = isRecommended(ingredient.id);
+                return (
+                  <button
+                    key={ingredient.id}
+                    onClick={() => toggleIngredient(ingredient)}
+                    className={cn(
+                      'p-3 rounded-xl border-2 transition-all text-left relative',
+                      isSelected
+                        ? 'border-primary bg-primary/5 shadow-md'
+                        : recommended
+                        ? 'border-amber-400/50 bg-amber-50/30 dark:bg-amber-900/10 hover:border-amber-400 hover:shadow-sm'
+                        : 'border-border bg-card hover:border-primary/30 hover:shadow-sm'
+                    )}
+                  >
+                    {/* Badge area */}
+                    <div className="absolute top-1.5 right-1.5 flex gap-1">
+                      {recommended && !isSelected && (
+                        <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-600 flex items-center gap-0.5">
+                          <Star className="w-2 h-2" />
+                        </span>
+                      )}
+                      {isCustom && (
+                        <span className="text-[9px] px-1 py-0.5 rounded bg-accent/20 text-accent">
+                          自定义
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xl">{ingredient.emoji || getCategoryEmoji(ingredient.category)}</span>
+                      {isSelected ? (
+                        <X className="w-4 h-4 text-primary" />
+                      ) : (
+                        <Plus className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </div>
+                    <p className="font-medium text-sm mb-0.5 truncate">{ingredient.name}</p>
+                    <p className="text-[11px] text-muted-foreground mb-1.5">
+                      {ingredient.caloriesPer100g}卡/100{ingredient.unit}
+                    </p>
+                    {/* Macro nutrients with color coding */}
+                    <div className="flex gap-1 flex-wrap">
+                      <span className="text-[9px] px-1 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                        蛋白{ingredient.proteinPer100g}
+                      </span>
+                      <span className="text-[9px] px-1 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                        碳水{ingredient.carbsPer100g}
+                      </span>
+                      <span className="text-[9px] px-1 py-0.5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400">
+                        脂肪{ingredient.fatPer100g}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        )}
-
-        {/* Ingredients grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-8">
-          {filteredIngredients.map(ingredient => {
-            const isSelected = weeklyIngredients.some(i => i.id === ingredient.id);
-            const isCustom = ingredient.id.startsWith('custom-');
-            const recommended = isRecommended(ingredient.id);
-            return (
-              <button
-                key={ingredient.id}
-                onClick={() => toggleIngredient(ingredient)}
-                className={cn(
-                  'p-4 rounded-xl border-2 transition-all text-left relative',
-                  isSelected
-                    ? 'border-primary bg-primary/5 shadow-md'
-                    : recommended
-                    ? 'border-amber-400/50 bg-amber-50/30 dark:bg-amber-900/10 hover:border-amber-400 hover:shadow-sm'
-                    : 'border-border bg-card hover:border-primary/30 hover:shadow-sm'
-                )}
-              >
-                {/* Badge area */}
-                <div className="absolute top-2 right-2 flex gap-1">
-                  {recommended && !isSelected && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 flex items-center gap-0.5">
-                      <Star className="w-2.5 h-2.5" />
-                      推荐
-                    </span>
-                  )}
-                  {isCustom && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent">
-                      自定义
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-2xl">{ingredient.emoji || getCategoryEmoji(ingredient.category)}</span>
-                  {isSelected ? (
-                    <X className="w-4 h-4 text-primary" />
-                  ) : (
-                    <Plus className="w-4 h-4 text-muted-foreground" />
-                  )}
-                </div>
-                <p className="font-medium text-sm mb-1">{ingredient.name}</p>
-                <p className="text-xs text-muted-foreground mb-2">
-                  {ingredient.caloriesPer100g}卡/100{ingredient.unit}
-                </p>
-                {/* Macro nutrients with color coding */}
-                <div className="flex gap-1.5 flex-wrap">
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400">
-                    蛋白{ingredient.proteinPer100g}g
-                  </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                    碳水{ingredient.carbsPer100g}g
-                  </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400">
-                    脂肪{ingredient.fatPer100g}g
-                  </span>
-                </div>
-              </button>
-            );
-          })}
         </div>
 
-        {/* Navigation */}
-        <div className="flex justify-between">
+        {/* Navigation - Mobile only */}
+        <div className="lg:hidden flex justify-between mt-6 sticky bottom-4 bg-background/80 backdrop-blur-sm p-3 rounded-xl border border-border shadow-lg">
           <Button
             variant="outline"
             onClick={() => navigate('/mode')}
             className="gap-2"
+            size="sm"
           >
             <ArrowLeft className="w-4 h-4" />
-            返回选择模式
+            返回
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={weeklyIngredients.length === 0}
             className="gap-2"
+            size="sm"
           >
-            确认本周食材
+            确认食材 ({weeklyIngredients.length})
             <ArrowRight className="w-4 h-4" />
           </Button>
         </div>
